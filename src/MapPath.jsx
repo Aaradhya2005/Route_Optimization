@@ -1,59 +1,102 @@
 import React, { useState } from "react";
-import { MapContainer, TileLayer, Marker, Polyline } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
+import "./MapPath.css";
 
-// Fix Leaflet icon issues with Vite
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
   iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
 });
 
+const ClickHandler = ({ onMapClick }) => {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng);
+    },
+  });
+  return null;
+};
+
 const MapPath = () => {
-  const [source, setSource] = useState({ lat: 51.505, lng: -0.09 });
-  const [destination, setDestination] = useState({ lat: 51.51, lng: -0.1 });
+  const [source, setSource] = useState(null);
+  const [destination, setDestination] = useState(null);
   const [path, setPath] = useState([]);
 
+  const handleMapClick = (latlng) => {
+    if (!source) {
+      setSource(latlng);
+    } else if (!destination) {
+      setDestination(latlng);
+    }
+  };
+
   const handleFindPath = () => {
-    // Placeholder: just connect source and destination directly
-    setPath([source, destination]);
+    if (source && destination) {
+      setPath([source, destination]);
+    }
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: "10px" }}>
-        <input
-          type="text"
-          placeholder="Source lat,lng"
-          value={`${source.lat},${source.lng}`}
-          onChange={(e) => {
-            const [lat, lng] = e.target.value.split(",").map(Number);
-            setSource({ lat, lng });
+    <div className="map-wrapper">
+      <div className="input-group">
+        <button
+          onClick={() => {
+            setSource(null);
+            setDestination(null);
+            setPath([]);
           }}
-        />
-        <input
-          type="text"
-          placeholder="Destination lat,lng"
-          value={`${destination.lat},${destination.lng}`}
-          onChange={(e) => {
-            const [lat, lng] = e.target.value.split(",").map(Number);
-            setDestination({ lat, lng });
-          }}
-          style={{ marginLeft: "10px" }}
-        />
-        <button onClick={handleFindPath} style={{ marginLeft: "10px" }}>
-          Find Path
+        >
+          Reset
         </button>
+        <button onClick={handleFindPath}>Find Path</button>
+        {source && (
+          <span>
+            Source: {source.lat.toFixed(5)}, {source.lng.toFixed(5)}
+          </span>
+        )}
+        {destination && (
+          <span style={{ marginLeft: "10px" }}>
+            Destination: {destination.lat.toFixed(5)},{" "}
+            {destination.lng.toFixed(5)}
+          </span>
+        )}
       </div>
 
-      <MapContainer center={source} zoom={13} style={{ height: "500px", width: "100%" }}>
+      <MapContainer center={[51.505, -0.09]} zoom={13} className="leaflet-map">
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; OpenStreetMap contributors"
         />
-        <Marker position={source} />
-        <Marker position={destination} />
+
+        <ClickHandler onMapClick={handleMapClick} />
+
+        {source && (
+          <Marker position={source}>
+            <Popup>
+              Source: {source.lat.toFixed(5)}, {source.lng.toFixed(5)}
+            </Popup>
+          </Marker>
+        )}
+
+        {destination && (
+          <Marker position={destination}>
+            <Popup>
+              Destination: {destination.lat.toFixed(5)},{" "}
+              {destination.lng.toFixed(5)}
+            </Popup>
+          </Marker>
+        )}
+
         {path.length > 0 && <Polyline positions={path} color="blue" />}
       </MapContainer>
     </div>
