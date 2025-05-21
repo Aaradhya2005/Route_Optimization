@@ -6,17 +6,18 @@
 #include <string>
 #include <nlohmann/json.hpp>
 
+using namespace std;
 using json = nlohmann::json;
 
 struct Node {
     double lat, lon;
-    std::string id;
-    std::vector<std::pair<std::string, double>> neighbors; // neighbor_id, distance
+    string id;
+    vector<pair<string, double>> neighbors; // neighbor_id, distance
 };
 
 class Graph {
 private:
-    std::unordered_map<std::string, Node> nodes;
+    unordered_map<string, Node> nodes;
     
     double calculateDistance(const Node& a, const Node& b) {
         // Haversine formula to calculate distance between two points on Earth
@@ -34,11 +35,11 @@ private:
     }
 
 public:
-    void addNode(const std::string& id, double lat, double lon) {
+    void addNode(const string& id, double lat, double lon) {
         nodes[id] = {lat, lon, id, {}};
     }
 
-    void addEdge(const std::string& from, const std::string& to) {
+    void addEdge(const string& from, const string& to) {
         if (nodes.count(from) && nodes.count(to)) {
             double distance = calculateDistance(nodes[from], nodes[to]);
             nodes[from].neighbors.push_back({to, distance});
@@ -46,15 +47,15 @@ public:
         }
     }
 
-    std::vector<std::string> findShortestPath(const std::string& start, const std::string& end) {
-        std::unordered_map<std::string, double> distances;
-        std::unordered_map<std::string, std::string> previous;
-        std::priority_queue<std::pair<double, std::string>,
-                          std::vector<std::pair<double, std::string>>,
-                          std::greater<>> pq;
+    vector<string> findShortestPath(const string& start, const string& end) {
+        unordered_map<string, double> distances;
+        unordered_map<string, string> previous;
+        priority_queue<pair<double, string>,
+                      vector<pair<double, string>>,
+                      greater<>> pq;
 
         for (const auto& node : nodes) {
-            distances[node.first] = std::numeric_limits<double>::infinity();
+            distances[node.first] = numeric_limits<double>::infinity();
         }
         distances[start] = 0;
         pq.push({0, start});
@@ -75,20 +76,20 @@ public:
             }
         }
 
-        std::vector<std::string> path;
-        if (distances[end] == std::numeric_limits<double>::infinity()) {
+        vector<string> path;
+        if (distances[end] == numeric_limits<double>::infinity()) {
             return path;
         }
 
-        for (std::string current = end; current != start; current = previous[current]) {
+        for (string current = end; current != start; current = previous[current]) {
             path.push_back(current);
         }
         path.push_back(start);
-        std::reverse(path.begin(), path.end());
+        reverse(path.begin(), path.end());
         return path;
     }
 
-    json getPathCoordinates(const std::vector<std::string>& path) {
+    json getPathCoordinates(const vector<string>& path) {
         json result = json::array();
         for (const auto& nodeId : path) {
             json point;
@@ -102,7 +103,7 @@ public:
 
 extern "C" {
     const char* findPath(const char* startId, const char* endId) {
-        static std::string result;
+        static string result;
         Graph graph;
         
         // TODO: Load real road data here
