@@ -27,6 +27,7 @@ class Graph {
         try {
             console.log('Fetching road data...');
             const response = await axios.post('https://overpass-api.de/api/interpreter', query);
+            console.log('Road data response:', response.data);
             this.roadNetwork = response.data;
             this.processRoadData();
             console.log(`Road network initialized with ${this.nodes.size} nodes`);
@@ -82,6 +83,8 @@ class Graph {
                 }
             }
         });
+
+        console.log(`Processed ${this.nodes.size} nodes and ${this.roadNetwork.elements.length} elements.`);
     }
 
     calculateDistance(a, b) {
@@ -139,31 +142,25 @@ class Graph {
             return { path: [], distance: Infinity };
         }
 
-        // A* pathfinding implementation
-        const openSet = new Set([startNode]);
-        const closedSet = new Set();
-        const gScore = new Map([[startNode, 0]]);
-        const fScore = new Map([[startNode, this.calculateDistance(
-            this.nodes.get(startNode),
-            this.nodes.get(endNode)
-        )]]);
-        const cameFrom = new Map();
-        const startTime = Date.now();
-        const TIMEOUT = 2000; // 2 second timeout
+        const distances = new Map();
+        const previous = new Map();
+        const priorityQueue = new Set([startNode]);
 
-        while (openSet.size > 0) {
-            if (Date.now() - startTime > TIMEOUT) {
-                console.log('Pathfinding timed out');
-                return { path: [], distance: Infinity };
-            }
+        // Initialize distances
+        this.nodes.forEach((_, nodeId) => {
+            distances.set(nodeId, Infinity);
+            previous.set(nodeId, null);
+        });
+        distances.set(startNode, 0);
 
-            // Find node with lowest fScore
+        while (priorityQueue.size > 0) {
+            // Get the node with the smallest distance
             let current = null;
-            let lowestFScore = Infinity;
-            for (const nodeId of openSet) {
-                const score = fScore.get(nodeId);
-                if (score < lowestFScore) {
-                    lowestFScore = score;
+            let smallestDistance = Infinity;
+
+            for (const nodeId of priorityQueue) {
+                if (distances.get(nodeId) < smallestDistance) {
+                    smallestDistance = distances.get(nodeId);
                     current = nodeId;
                 }
             }
@@ -174,41 +171,25 @@ class Graph {
                 let node = current;
                 while (node) {
                     path.unshift(node);
-                    node = cameFrom.get(node);
+                    node = previous.get(node);
                 }
 
-                const finalPath = [
-                    { lat: startLat, lon: startLon },
-                    ...path.map(id => this.nodes.get(id)),
-                    { lat: endLat, lon: endLon }
-                ];
-
                 return {
-                    path: finalPath,
-                    distance: gScore.get(endNode)
+                    path: path.map(id => this.nodes.get(id)),
+                    distance: distances.get(endNode)
                 };
             }
 
-            openSet.delete(current);
-            closedSet.add(current);
+            priorityQueue.delete(current);
 
             for (const [neighbor, distance] of this.nodes.get(current).neighbors) {
-                if (closedSet.has(neighbor)) continue;
+                const tentativeDistance = distances.get(current) + distance;
 
-                const tentativeGScore = gScore.get(current) + distance;
-
-                if (!openSet.has(neighbor)) {
-                    openSet.add(neighbor);
-                } else if (tentativeGScore >= gScore.get(neighbor)) {
-                    continue;
+                if (tentativeDistance < distances.get(neighbor)) {
+                    distances.set(neighbor, tentativeDistance);
+                    previous.set(neighbor, current);
+                    priorityQueue.add(neighbor);
                 }
-
-                cameFrom.set(neighbor, current);
-                gScore.set(neighbor, tentativeGScore);
-                fScore.set(neighbor, tentativeGScore + this.calculateDistance(
-                    this.nodes.get(neighbor),
-                    this.nodes.get(endNode)
-                ));
             }
         }
 
@@ -217,19 +198,27 @@ class Graph {
 }
 
 const graph = new Graph();
-// Expanded bounding box to cover a larger area of Dehradun
-const BBOX = '30.0,77.7,30.5,78.2'; // Covers a much larger area
 
-console.log('Initializing road network for expanded area:', BBOX);
-graph.initializeRoadNetwork(BBOX).catch(error => {
-    console.error('Failed to initialize road network:', error);
-    process.exit(1);
-});
+function calculateBoundingBox(startLat, startLon, endLat, endLon) {
+    const minLat = Math.min(startLat, endLat);
+    const maxLat = Math.max(startLat, endLat);
+    const minLon = Math.min(startLon, endLon);
+    const maxLon = Math.max(startLon, endLon);
+    return `${minLat},${minLon},${maxLat},${maxLon}`;
+}
 
 app.post('/api/find-path', async (req, res) => {
     const { startLat, startLon, endLat, endLon } = req.body;
     try {
         console.log('Finding path from', startLat, startLon, 'to', endLat, endLon);
+
+        // Use a fixed bounding box for Uttarakhand
+        const BBOX = '29.0,77.5,31.5,80.5'; // Covers the entire area of Uttarakhand
+        console.log('Using BBOX for road data:', BBOX);
+
+        // Initialize the road network with the fixed BBOX
+        await graph.initializeRoadNetwork(BBOX);
+
         const result = graph.findShortestPath(startLat, startLon, endLat, endLon);
 
         if (result.path.length === 0) {
